@@ -1,193 +1,341 @@
-# AI Task Processing Platform
+# AI Task Platform
 
-A production-oriented asynchronous text-processing platform. Authenticated users
-create tasks in a React dashboard, the Express API persists them in MongoDB and
-queues execution in Redis, and independently scalable Python workers process the
-jobs and save results and execution logs.
+## Project Overview
 
-## Architecture summary
+AI Task Platform is an authenticated, asynchronous text-processing application. Users register, log in, create a task, choose a text operation, and queue the task from a protected React dashboard. A Node.js/Express backend stores users and tasks in MongoDB and publishes jobs to a Redis queue. An independently running Python worker processes those jobs and writes results and execution logs back to MongoDB.
 
-```text
-Browser -> React/nginx -> Express API -> MongoDB
-                         |             ^
-                         v             |
-                       Redis ------> Python workers
-```
-
-See [docs/architecture.md](docs/architecture.md) for scaling, recovery, security,
-monitoring, staging, and production design details.
-
-## Technology stack
-
-- Frontend: React 19, Vite, React Router, nginx
-- API: Node.js 22, Express 5, Mongoose
-- Worker: Python 3, PyMongo, redis-py
-- Data: MongoDB 8 and Redis 7 with AOF persistence
-- Security: JWT, bcrypt, Helmet, CORS, rate limiting
-- Platform: Docker Compose, Kubernetes/Kustomize, Argo CD, GitHub Actions
+The project includes local Docker Compose orchestration, Kubernetes manifests, an Argo CD GitOps Application, and a GitHub Actions CI/CD pipeline.
 
 ## Features
 
-- Registration followed by login and protected frontend routes
-- JWT-protected task APIs with per-user ownership checks
-- Uppercase, lowercase, reverse-string, and word-count operations
-- Asynchronous `Pending -> Running -> Success/Failed` execution
+- User registration followed by login
+- JWT authentication and protected frontend routes
+- Per-user task authorization
+- Task creation and asynchronous execution
+- Redis-backed `ai_tasks` work queue
+- Independently scalable Python worker
+- Uppercase conversion
+- Lowercase conversion
+- Reverse string
+- Word count
+- `Pending`, `Running`, `Success`, and `Failed` task states
 - Results, errors, timestamps, and execution logs
-- Responsive dashboard with live polling
-- Non-root application containers, health checks, and persistent local data
+- Automatic dashboard refresh every two seconds
+- Manual task-list refresh and task rerun
 
-## Folder structure
+## Technology Stack
+
+| Area | Technology |
+|---|---|
+| Frontend | React 19, Vite, React Router, nginx |
+| Backend | Node.js 22, Express 5, Mongoose |
+| Database | MongoDB 8 |
+| Queue | Redis 7 with AOF persistence |
+| Worker | Python 3.13, PyMongo, redis-py |
+| Authentication | JWT and bcrypt |
+| Containerization | Docker and Docker Compose |
+| Orchestration | Kubernetes and Kustomize |
+| GitOps | Argo CD |
+| CI/CD | GitHub Actions and Docker Hub |
+
+## Project Structure
 
 ```text
-backend/                 Express API, models, routes, controllers
-frontend/                React/Vite application and nginx configuration
-worker/                  Python Redis consumer
-infrastructure/
-  kubernetes/            Kustomize-ready Kubernetes manifests
-  argocd/                Argo CD Application and setup guide
-.github/workflows/       CI/CD pipeline
-docs/                    Architecture, CI setup, submission checklist
-docker-compose.yml       Complete local stack
+AI-Task-Platform/
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml
+├── backend/
+│   ├── src/
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── middleware/
+│   │   ├── models/
+│   │   ├── routes/
+│   │   └── utils/
+│   ├── Dockerfile
+│   ├── package.json
+│   └── server.js
+├── frontend/
+│   ├── src/
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── package.json
+├── worker/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── worker.py
+├── infrastructure/
+│   ├── argocd/
+│   │   ├── application.yaml
+│   │   └── README.md
+│   └── kubernetes/
+│       ├── kustomization.yaml
+│       └── *.yaml
+├── docs/
+│   ├── architecture.md
+│   ├── github-actions-setup.md
+│   └── submission-checklist.md
+├── .env.example
+├── docker-compose.yml
+└── README.md
 ```
 
-## Local development
+## System Architecture
 
-Prerequisites: Node.js 22+, Python 3.13+, MongoDB, and Redis.
+```mermaid
+flowchart LR
+  U[User] --> F[React frontend<br/>nginx :8080]
+  F -->|REST /api| B[Express backend :5000]
+  B -->|users and tasks| M[(MongoDB :27017)]
+  B -->|LPUSH ai_tasks| R[(Redis queue :6379)]
+  R -->|BRPOP ai_tasks| W[Python worker]
+  W -->|status, result and logs| M
+  M --> B
+  B --> F
+  F -.->|poll every 2 seconds| B
+```
+
+For scaling, reliability, security, GitOps, and production recommendations, see the [architecture document](docs/architecture.md).
+
+## Task Processing Flow
+
+1. The React frontend sends an authenticated task request to the Express backend.
+2. The backend validates the request and creates a `Pending` task in MongoDB.
+3. When the user selects **Run Task**, the backend pushes its ID to the Redis `ai_tasks` list.
+4. A Python worker consumes the ID, loads the task from MongoDB, and marks it `Running`.
+5. The worker executes `uppercase`, `lowercase`, `reverse`, or `word_count`.
+6. The worker updates MongoDB with `Success` and the result, or `Failed` and an error.
+7. The frontend polls the API every two seconds and displays the latest status, result, and logs.
+
+```text
+Frontend → Backend → MongoDB → Redis Queue → Python Worker
+    ↑                                           ↓
+    └──────── Result through API ← MongoDB Update
+```
+
+## API Endpoints
+
+The default API base URL for local development is `http://localhost:5000/api`.
+
+| Method | Endpoint | Authentication | Purpose |
+|---|---|---|---|
+| `GET` | `/api/health` | Public | Return backend health status |
+| `POST` | `/api/auth/register` | Public | Create a user account |
+| `POST` | `/api/auth/login` | Public | Verify credentials and return a JWT |
+| `GET` | `/api/auth/me` | Bearer JWT | Return the authenticated user |
+| `POST` | `/api/tasks` | Bearer JWT | Create a Pending task |
+| `GET` | `/api/tasks` | Bearer JWT | List the user's newest 100 tasks |
+| `GET` | `/api/tasks/:id` | Bearer JWT and owner | Retrieve one owned task |
+| `POST` | `/api/tasks/:id/run` | Bearer JWT and owner | Queue or rerun an owned task |
+
+## Environment Variables
+
+Copy the committed `.env.example` templates and replace placeholder values locally. Never commit real credentials.
+
+### Frontend
+
+| Variable | Example | Description |
+|---|---|---|
+| `VITE_API_URL` | `http://localhost:5000/api` | API base URL embedded in the Vite build. Kubernetes/CI builds use `/api`. This is public configuration, not a secret. |
+
+### Backend
+
+| Variable | Example | Description |
+|---|---|---|
+| `PORT` | `5000` | Express listen port |
+| `MONGO_URI` | `mongodb://127.0.0.1:27017/ai_task_platform` | MongoDB connection URI |
+| `REDIS_URL` | `redis://127.0.0.1:6379` | Redis connection URL |
+| `JWT_SECRET` | `REPLACE_WITH_A_LONG_RANDOM_SECRET` | Private key material used to sign JWTs; replace the placeholder |
+| `CLIENT_URL` | `http://localhost:5173` | Exact browser origin allowed by CORS |
+
+### Worker
+
+| Variable | Example | Description |
+|---|---|---|
+| `MONGO_URI` | `mongodb://127.0.0.1:27017/ai_task_platform` | MongoDB database containing tasks |
+| `REDIS_URL` | `redis://127.0.0.1:6379` | Redis queue connection URL |
+
+Inside Compose and Kubernetes, the service hostnames are `mongo` and `redis` instead of `127.0.0.1`.
+
+## Local Development
+
+### Prerequisites
+
+- Git
+- Node.js 22+
+- Python 3.13+
+- MongoDB on `127.0.0.1:27017`
+- Redis on `127.0.0.1:6379`
+
+Clone and enter the repository:
+
+```bash
+git clone https://github.com/ayush31082005/AI-Task-Platform.git
+cd AI-Task-Platform
+```
+
+Create local environment files:
 
 ```bash
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 cp worker/.env.example worker/.env
-
-cd backend && npm install && npm run dev
-cd frontend && npm install && npm run dev
-cd worker && python -m venv .venv
 ```
 
-Activate the worker environment and install dependencies:
+Replace `JWT_SECRET` in `backend/.env` with a long random value. Start each component in a separate terminal.
+
+Backend:
 
 ```bash
-# Git Bash on Windows
-source worker/.venv/Scripts/activate
-pip install -r worker/requirements.txt
-python worker/worker.py
+cd backend
+npm install
+npm run dev
 ```
 
-Run the backend, frontend, and worker in separate terminals. MongoDB must listen
-on `27017`, and Redis on `6379`.
+Frontend:
 
-## Docker Compose
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-Create a local environment file and replace the JWT placeholder:
+Worker using Git Bash on Windows:
+
+```bash
+cd worker
+python -m venv .venv
+source .venv/Scripts/activate
+pip install -r requirements.txt
+python worker.py
+```
+
+Open <http://localhost:5173>. The backend health endpoint is <http://localhost:5000/api/health>.
+
+> Local source-mode development requires MongoDB and Redis to be reachable on the host ports above. The repository's Compose configuration keeps those database ports internal, so use the complete Compose stack below if local database services are not separately installed.
+
+## Docker
+
+Docker Compose builds the frontend, backend, and worker images and starts MongoDB and Redis. First create the root environment file and replace its JWT placeholder:
 
 ```bash
 cp .env.example .env
-docker compose up --build
+docker compose down
+docker compose up --build -d
+docker compose ps
 ```
 
-- Frontend: <http://localhost:5173>
-- Backend health: <http://localhost:5000/api/health>
-
-MongoDB and Redis are internal-only services. Named volumes preserve MongoDB
-data and Redis AOF data. Stop and inspect the stack with:
+Useful commands:
 
 ```bash
-docker compose down
-docker compose up --build
-docker compose ps
 docker compose logs -f
+docker compose logs -f backend
+docker compose logs -f worker
+docker compose down
 ```
 
-## Environment variables
-
-| Variable | Consumer | Purpose |
-|---|---|---|
-| `PORT` | Backend | API listen port, default `5000` |
-| `MONGO_URI` | Backend/worker | MongoDB connection URI |
-| `REDIS_URL` | Backend/worker | Redis connection URL |
-| `JWT_SECRET` | Backend | Strong JWT signing secret |
-| `CLIENT_URL` | Backend | Allowed browser origin |
-| `VITE_API_URL` | Frontend build | API base URL; `/api` in containers |
-
-Never commit `.env` files or real Kubernetes secrets.
-
-## API endpoints
-
-| Method | Route | Authentication |
-|---|---|---|
-| `GET` | `/api/health` | Public |
-| `POST` | `/api/auth/register` | Public |
-| `POST` | `/api/auth/login` | Public |
-| `GET` | `/api/auth/me` | Bearer JWT |
-| `POST` | `/api/tasks` | Bearer JWT |
-| `GET` | `/api/tasks` | Bearer JWT |
-| `GET` | `/api/tasks/:id` | Bearer JWT and owner |
-| `POST` | `/api/tasks/:id/run` | Bearer JWT and owner |
-
-## Task processing workflow
-
-1. An authenticated user creates a task; MongoDB stores it as `Pending`.
-2. The user selects **Run Task**; the API resets execution state and pushes its
-   identifier to the Redis `ai_tasks` list.
-3. A worker consumes the job and sets the task to `Running`.
-4. The worker executes `uppercase`, `lowercase`, `reverse`, or `word_count`.
-5. Result and logs are saved and status becomes `Success`; exceptions produce
-   `Failed` with an error message.
+- Frontend: <http://localhost:5173> (host `5173` → container `8080`)
+- Backend: <http://localhost:5000>
+- MongoDB and Redis: internal Compose services with persistent named volumes
+- Redis AOF: enabled to replay persisted queue changes after ordinary restarts
 
 ## Kubernetes
 
-Replace image placeholders and the JWT secret template before deployment. Ensure
-an nginx Ingress controller, default StorageClass, Metrics Server, and DNS/hosts
-entry for `ai-task.local` exist.
+The Kustomize setup deploys namespace `ai-task-platform`, two frontend replicas, two backend replicas, independently scalable workers, single-replica MongoDB/Redis with PVCs, ClusterIP Services, and nginx Ingress host `ai-task.local`.
+
+Prerequisites include a Kubernetes cluster, nginx Ingress Controller, Metrics Server for the worker HPA, a default StorageClass, and valid image/secret configuration.
 
 ```bash
+kubectl kustomize infrastructure/kubernetes
 kubectl apply -k infrastructure/kubernetes
 kubectl get all -n ai-task-platform
 kubectl get ingress,pvc,hpa -n ai-task-platform
 ```
 
-The HPA scales workers from 2 to 10 replicas using CPU. Production should use
-Redis queue depth through KEDA or a custom metrics adapter instead.
+On Windows, map the Ingress IP for `ai-task.local` in `C:\Windows\System32\drivers\etc\hosts`. Detailed instructions are in the [Kubernetes guide](infrastructure/kubernetes/README.md).
 
-## Argo CD and GitHub Actions
+## Argo CD
 
-- Follow [infrastructure/argocd/README.md](infrastructure/argocd/README.md).
-- Configure CI secrets using [docs/github-actions-setup.md](docs/github-actions-setup.md).
-- Replace `YOUR_GITHUB_USERNAME` and `YOUR_DOCKERHUB_USERNAME` placeholders.
-- Keep application and infrastructure content in separate repositories for the
-  final submission; Argo CD watches the infrastructure repository.
+The Application uses automated synchronization with pruning and self-healing:
 
-## Security notes
+```bash
+kubectl apply -n argocd -f infrastructure/argocd/application.yaml
+kubectl get application ai-task-platform -n argocd
+```
 
-- Passwords are hashed with bcrypt cost 12.
-- JWTs expire after seven days; task routes verify the token and task owner.
-- Helmet, environment-driven CORS, JSON size limits, and API rate limiting are
-  enabled. Mongoose schemas validate sizes and operation values.
-- Real secrets should come from a secret manager, Sealed Secrets, External
-  Secrets, or a manual out-of-band Kubernetes Secret.
+Before applying, replace `YOUR_GITHUB_USERNAME` in `infrastructure/argocd/application.yaml` and ensure `repoURL` points to the repository that actually contains `infrastructure/kubernetes`. See the [Argo CD guide](infrastructure/argocd/README.md) for installation, UI access, synchronization, and troubleshooting.
 
-## Troubleshooting
+## GitHub Actions
 
-- `ECONNREFUSED 127.0.0.1:6379`: start Redis or use Docker Compose.
-- Task remains `Pending`: confirm the worker is running and inspect worker logs.
-- CORS error: make `CLIENT_URL` exactly match the frontend origin.
-- `ai-task.local` does not resolve: map it to the cluster ingress IP in the hosts
-  file and verify the nginx Ingress controller.
-- HPA shows unknown metrics: install and verify Kubernetes Metrics Server.
-- Compose secret warning: copy `.env.example` to `.env` and replace the value.
+The [CI/CD workflow](.github/workflows/ci-cd.yml) runs on pushes and pull requests to `main`, plus manual dispatch. It:
 
-## Assumptions and known constraints
+- Lints the backend and frontend
+- Builds the frontend
+- Validates Python syntax
+- Validates YAML, Docker Compose, and Kustomize
+- Builds all three Docker images on pull requests without pushing
+- Pushes SHA-tagged and `latest` images to Docker Hub on `main`
+- Updates Kubernetes Kustomize image tags and commits them with `[skip ci]`
 
-- Local MongoDB and Redis are single-node assignment dependencies.
-- The current Redis list consumer uses `BRPOP`; a worker crash after dequeue can
-  lose an in-flight job. Production should use acknowledgements, retries, an
-  idempotency key, and a dead-letter queue or Redis Streams/BullMQ/Celery.
-- Polling is used instead of WebSockets. Task listing is capped at 100 records.
-- TLS, managed databases, backup policies, and external secret management are
-  deployment-environment responsibilities.
+Main-branch publishing requires GitHub repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. Setup and security details are in the [GitHub Actions guide](docs/github-actions-setup.md).
 
-## Submission checklist
+## Security
 
-Use [docs/submission-checklist.md](docs/submission-checklist.md) to record the two
-repository links, optional live URL, Argo CD screenshot, architecture document,
-README, and assumptions before submission.
+- Passwords are hashed using bcrypt with cost factor 12.
+- JWTs are signed using `JWT_SECRET`, expire after seven days, and are required by every task route.
+- Task database queries include the authenticated `userId` to enforce ownership.
+- Helmet configures HTTP security headers.
+- CORS permits only `CLIENT_URL` and enables credentials support.
+- Express limits JSON bodies to 32 KiB.
+- API rate limiting allows 300 requests per 15-minute window using the configured default client key behavior.
+- Controllers validate required fields, password length, and supported operations; Mongoose validates field sizes, enums, and unique email.
+- Application containers run as non-root, and Kubernetes drops Linux capabilities where compatible.
+
+For production, HTTPS, managed secrets, token rotation/revocation, NetworkPolicies, centralized audit logs, and stronger schema validation are recommended.
+
+## Screenshots
+
+The following submission screenshots still need to be captured and added:
+
+### Frontend
+
+> Placeholder: add a screenshot of the login/register page or dashboard.
+
+### Task List
+
+> Placeholder: add a screenshot showing tasks, statuses, results, and execution logs.
+
+### Docker
+
+> Placeholder: add a screenshot of `docker compose ps` or the running stack in Docker Desktop.
+
+### Argo CD
+
+> Placeholder: add a screenshot showing the application health, sync status, and resource tree.
+
+## Future Improvements
+
+The following are recommendations and are not currently installed:
+
+- Prometheus metrics for API, worker, Redis, MongoDB, and queue behavior
+- Grafana dashboards and operational alerting
+- Loki or another centralized logging platform
+- User notifications when asynchronous tasks complete
+- Redis queue-length and oldest-job-age metrics
+- KEDA or custom-metric worker autoscaling instead of CPU-only scaling
+- Acknowledged jobs, retries, idempotency, and a dead-letter queue
+- Managed high-availability MongoDB and Redis
+- TLS, external secret management, backups, and recovery testing
+
+## Author
+
+**YOUR NAME**
+
+Replace this placeholder with the submitter's actual name before final submission.
+
+## License
+
+MIT
+
+This README identifies the intended license as MIT. Add a root `LICENSE` file before public distribution if the repository does not yet contain one.
