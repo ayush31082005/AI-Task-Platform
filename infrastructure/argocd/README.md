@@ -33,6 +33,10 @@ The `Application` watches the `main` branch and
 `selfHeal` reverses supported manual drift, and `prune` removes resources that
 were removed from Git.
 
+The Application ignores the live `data` field of `ai-task-secret` and enables
+`RespectIgnoreDifferences=true`. This prevents Argo CD from replacing the
+out-of-band JWT value with the safe placeholder committed for the assignment.
+
 ## Prerequisites
 
 - A reachable Kubernetes cluster and configured `kubectl` context
@@ -100,8 +104,8 @@ Never store the admin password or repository credentials in this repository.
 
 ## Apply the Application
 
-Replace only the placeholder in `application.yaml` with the real infrastructure
-repository owner. Do not put credentials in the URL.
+The public infrastructure repository URL is already configured in
+`application.yaml`. Do not put credentials in the URL.
 
 ```bash
 kubectl apply -n argocd -f infrastructure/argocd/application.yaml
