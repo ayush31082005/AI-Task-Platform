@@ -121,11 +121,13 @@ Kustomize composes manifests in `infrastructure/kubernetes`. Frontend and backen
 
 The Argo CD Application targets `infrastructure/kubernetes`, revision `main`, cluster server `https://kubernetes.default.svc`, and namespace `ai-task-platform`. Automated sync enables prune, self-heal, and namespace creation. Git is therefore intended as desired state, and Argo CD reconciles the cluster after manifest changes.
 
-The committed `repoURL` is still `https://github.com/YOUR_GITHUB_USERNAME/ai-task-platform-infra.git`. This placeholder and the separate-infrastructure-repository naming must be replaced or aligned with the actual repository before deployment.
+The committed `repoURL` is
+`https://github.com/ayush31082005/ai-task-platform-infra.git`, which contains
+the Kustomize manifests under `infrastructure/kubernetes`.
 
 ## 19. GitHub Actions CI/CD workflow
 
-`.github/workflows/ci-cd.yml` runs on pushes and pull requests to `main` and manual dispatch. Separate jobs lint and validate the backend, build/lint the frontend, compile Python, validate YAML/Compose/Kustomize, and build all three images. Main pushes authenticate with `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`, publish `latest` and immutable Git-SHA tags, then use Kustomize to commit the SHA mappings with `[skip ci]`. Pull requests build without pushing and cannot update manifests. Only the update job receives `contents: write`.
+`.github/workflows/ci-cd.yml` runs on pushes and pull requests to `main` and manual dispatch. Separate jobs lint and validate the backend, build/lint the frontend, compile Python, validate YAML/Compose/Kustomize, and build all three images. Main pushes authenticate with `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`, publish `latest` and immutable Git-SHA tags, then use the narrowly scoped `INFRA_REPO_TOKEN` to commit SHA mappings with `[skip ci]` to the separate infrastructure repository. Pull requests build without pushing and cannot update manifests.
 
 ## 20. Staging deployment strategy
 

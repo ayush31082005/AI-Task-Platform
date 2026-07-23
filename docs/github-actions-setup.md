@@ -34,10 +34,12 @@ After validation succeeds, a main-branch push:
 1. Logs in to Docker Hub using repository secrets.
 2. Builds and pushes frontend, backend, and worker images.
 3. Publishes both the immutable Git SHA tag and `latest`.
-4. Uses Kustomize to update the three image mappings.
-5. Validates the rendered Kustomization.
-6. Commits only `infrastructure/kubernetes/kustomization.yaml` when changed.
-7. Pushes `chore: update deployment images [skip ci]` to `main`.
+4. Checks out the separate `ayush31082005/ai-task-platform-infra` repository.
+5. Uses Kustomize to update the three image mappings in that repository.
+6. Validates the rendered Kustomization.
+7. Commits only `infrastructure/kubernetes/kustomization.yaml` when changed.
+8. Pushes `chore: update deployment images [skip ci]` to the infrastructure
+   repository's `main` branch.
 
 The `[skip ci]` marker prevents the bot commit from recursively starting this
 workflow. A manual dispatch validates and builds images but does not push or
@@ -50,6 +52,9 @@ Add these under **Repository Settings > Secrets and variables > Actions**:
 - `DOCKERHUB_USERNAME`: Docker Hub username or organization.
 - `DOCKERHUB_TOKEN`: Docker Hub access token with permission to push the three
   repositories.
+- `INFRA_REPO_TOKEN`: fine-grained GitHub token scoped only to
+  `ayush31082005/ai-task-platform-infra`, with repository Contents set to
+  **Read and write**.
 
 Do not use the Docker Hub account password.
 
@@ -90,22 +95,17 @@ and current `${{ github.sha }}` tag without fragile search-and-replace commands.
 
 ## Argo CD GitOps flow
 
-After the manifest commit reaches Git, an Argo CD Application watching this
-repository/path can detect the new revision, render Kustomize, and sync the new
-images. This workflow does not contact a Kubernetes cluster or run `kubectl
+After the manifest commit reaches the separate infrastructure repository, the
+Argo CD Application detects the new revision, renders Kustomize, and syncs the
+new images. This workflow does not contact a Kubernetes cluster or run `kubectl
 apply`; deployment remains Argo CD's responsibility.
-
-The current Argo CD template uses a separate `ai-task-platform-infra` repository
-URL, while this assignment workflow is explicitly configured to commit to the
-same application repository. Before deployment, choose one consistent model:
-point Argo CD at this repository, or adapt the manifest-update job to check out
-and write the separate infrastructure repository with a narrowly scoped token.
 
 ## Permissions and branch protection
 
-Workflow-level permission is `contents: read`. Only the manifest-update job gets
-`contents: write`. Docker secrets are consumed only by the main-push publishing
-step and are never exposed to pull requests.
+Workflow and job-level `GITHUB_TOKEN` permission remains `contents: read`.
+Cross-repository writes use the fine-grained `INFRA_REPO_TOKEN`, scoped only to
+the infrastructure repository. Docker secrets are consumed only by the
+main-push publishing step and are never exposed to pull requests.
 
 If `main` branch protection rejects direct bot pushes, keep the protection in
 place. Use one of these reviewed alternatives:

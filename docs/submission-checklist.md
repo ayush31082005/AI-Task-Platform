@@ -6,11 +6,11 @@ Complete every placeholder and verify each unchecked item before submitting the 
 
 | Item | Submission value |
 |---|---|
-| Application Repository URL | `https://github.com/YOUR_GITHUB_USERNAME/YOUR_APPLICATION_REPOSITORY` |
-| Infrastructure Repository URL | `https://github.com/YOUR_GITHUB_USERNAME/YOUR_INFRASTRUCTURE_REPOSITORY` |
-| Branch Name | `YOUR_BRANCH_NAME` |
+| Application Repository URL | `https://github.com/ayush31082005/AI-Task-Platform` |
+| Infrastructure Repository URL | `https://github.com/ayush31082005/ai-task-platform-infra` |
+| Branch Name | `main` |
 | Commit Hash | `YOUR_COMMIT_HASH` |
-| Docker Hub Username | `YOUR_DOCKERHUB_USERNAME` |
+| Docker Hub Username | `ayush31082005` |
 
 ## 2. Deliverables
 

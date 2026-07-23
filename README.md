@@ -264,7 +264,11 @@ kubectl apply -n argocd -f infrastructure/argocd/application.yaml
 kubectl get application ai-task-platform -n argocd
 ```
 
-Before applying, replace `YOUR_GITHUB_USERNAME` in `infrastructure/argocd/application.yaml` and ensure `repoURL` points to the repository that actually contains `infrastructure/kubernetes`. See the [Argo CD guide](infrastructure/argocd/README.md) for installation, UI access, synchronization, and troubleshooting.
+The Application points to the public
+[`ayush31082005/ai-task-platform-infra`](https://github.com/ayush31082005/ai-task-platform-infra)
+repository, which contains `infrastructure/kubernetes`. See the
+[Argo CD guide](infrastructure/argocd/README.md) for installation, UI access,
+synchronization, and troubleshooting.
 
 ## GitHub Actions
 
@@ -278,7 +282,11 @@ The [CI/CD workflow](.github/workflows/ci-cd.yml) runs on pushes and pull reques
 - Pushes SHA-tagged and `latest` images to Docker Hub on `main`
 - Updates Kubernetes Kustomize image tags and commits them with `[skip ci]`
 
-Main-branch publishing requires GitHub repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. Setup and security details are in the [GitHub Actions guide](docs/github-actions-setup.md).
+Main-branch publishing requires GitHub repository secrets
+`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, and `INFRA_REPO_TOKEN`. The last secret
+is a fine-grained token with Contents read/write access only to the infrastructure
+repository. Setup and security details are in the
+[GitHub Actions guide](docs/github-actions-setup.md).
 
 ## Security
 
@@ -330,9 +338,8 @@ The following are recommendations and are not currently installed:
 
 ## Author
 
-**YOUR NAME**
+**Ayush Chaubey**
 
-Replace this placeholder with the submitter's actual name before final submission.
 
 ## License
 

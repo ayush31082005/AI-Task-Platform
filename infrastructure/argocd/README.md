@@ -37,7 +37,7 @@ were removed from Git.
 
 - A reachable Kubernetes cluster and configured `kubectl` context
 - Kubernetes manifests pushed to the separate infrastructure repository
-- `YOUR_GITHUB_USERNAME` replaced in `application.yaml`
+- `repoURL` in `application.yaml` points to the public infrastructure repository
 - Argo CD repository access configured if the repository is private
 - Optional: Argo CD CLI (`argocd`) installed locally
 

@@ -198,19 +198,22 @@ jobs:
     timeout-minutes: 10
     needs: build-and-push-images
     permissions:
-      contents: write
+      contents: read
     steps:
-      - name: Checkout main branch
+      - name: Checkout infrastructure repository
         uses: actions/checkout@v4
         with:
+          repository: ayush31082005/ai-task-platform-infra
           ref: main
           fetch-depth: 0
+          token: ${{ secrets.INFRA_REPO_TOKEN }}
+          path: infra-repo
 
       - name: Set up Kustomize
         uses: imranismail/setup-kustomize@v2
 
       - name: Update immutable image tags
-        working-directory: infrastructure/kubernetes
+        working-directory: infra-repo/infrastructure/kubernetes
         env:
           REGISTRY_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           IMAGE_TAG: ${{ github.sha }}
@@ -221,6 +224,7 @@ jobs:
           kustomize build . > /dev/null
 
       - name: Commit and push manifest update
+        working-directory: infra-repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
